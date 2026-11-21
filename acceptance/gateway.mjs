@@ -27,7 +27,7 @@ export async function startGateway(probes) {
   }
   const server = createServer(async (req, res) => {
     try {
-      assert.equal(req.headers.authorization, 'Bearer ' + key, 'Unexpected test credential')
+      assert(req.headers.authorization === 'Bearer ' + key, 'Unexpected test credential')
       if (req.method === 'GET' && req.url === '/v1/models') {
         listed = true
         res.writeHead(200, { 'content-type': 'application/json' })

@@ -29,6 +29,7 @@ $summary = [ordered]@{
     install = $false
     shortcuts = $false
     uninstall = $false
+    checks = [ordered]@{}
 }
 function Save-Report { $summary | ConvertTo-Json | Set-Content (Join-Path $Evidence 'windows.json') -Encoding utf8 }
 Save-Report
@@ -40,6 +41,17 @@ try {
             'resources/licenses/LICENSE','resources/licenses/THIRD_PARTY_NOTICES.md')) {
         if (!(Test-Path -LiteralPath (Join-Path $root $file) -PathType Leaf)) { throw "Missing $file" }
     }
+    $run = Get-Content (Join-Path $root 'resources/runtime/versions.json') -Raw | ConvertFrom-Json
+    $pins = Get-Content (Join-Path $workspace 'packaging/runtimes.json') -Raw | ConvertFrom-Json
+    if ($run.node -ne $pins.nodeVersion) { throw 'Unexpected embedded Node version' }
+    $standalone = Join-Path $root 'resources/runtime/primary-runtime/dependencies'
+    $nodeVersion = & (Join-Path $standalone 'node/bin/node.exe') -p 'process.versions.node'
+    if ($LASTEXITCODE -or $nodeVersion -cne $pins.nodeVersion) { throw 'Standalone Node runtime mismatch' }
+    $pythonVersion = & (Join-Path $standalone 'python/python.exe') --version
+    if ($LASTEXITCODE -or $pythonVersion -cne "Python $($pins.pythonVersion)") { throw 'Standalone Python runtime mismatch' }
+    $summary.embeddedNode = $run.node
+    $summary.standaloneNode = $nodeVersion
+    $summary.python = $pythonVersion
     $summary.install = $true
     $shell = New-Object -ComObject WScript.Shell
     foreach ($dir in @([Environment]::GetFolderPath('DesktopDirectory'), [Environment]::GetFolderPath('Programs'))) {
@@ -50,12 +62,18 @@ try {
     }
     $summary.shortcuts = $true
     Save-Report
-    python (Join-Path $PSScriptRoot 'native.py') $root (Join-Path $Evidence 'native.json')
-    if ($LASTEXITCODE) { throw 'Native inventory failed' }
-    node (Join-Path $PSScriptRoot 'installed-agent.mjs') $root $workspace $testHome $Evidence
-    if ($LASTEXITCODE) { throw 'Installed Agent acceptance failed' }
-    node (Join-Path $PSScriptRoot 'window.mjs') $root $testHome $Evidence $TestModules
-    if ($LASTEXITCODE) { throw 'Installed GUI acceptance failed' }
+    $checks = [ordered]@{
+        native = { python (Join-Path $PSScriptRoot 'native.py') $root (Join-Path $Evidence 'native.json') }
+        agent = { node (Join-Path $PSScriptRoot 'installed-agent.mjs') $root $workspace $testHome $Evidence }
+        window = { node (Join-Path $PSScriptRoot 'window.mjs') $root $testHome $Evidence $TestModules }
+    }
+    foreach ($name in $checks.Keys) {
+        & $checks[$name]
+        $summary.checks[$name] = ($LASTEXITCODE -eq 0)
+        Save-Report
+    }
+    $failed = @($checks.Keys | Where-Object { !$summary.checks[$_] })
+    if ($failed.Count) { throw "Failed installed-package checks: $($failed -join ', ')" }
 } finally {
     if (Test-Path -LiteralPath $root) {
         $uninstall = @(Get-ChildItem -LiteralPath $root -Filter 'Uninstall*.exe' -File)

@@ -1,5 +1,9 @@
 param([Parameter(Mandatory)][string]$Directory)
 $ErrorActionPreference = 'Stop'
+if ($env:GITHUB_REF_TYPE -eq 'branch') {
+    $current = gh api "repos/$env:GITHUB_REPOSITORY/commits/main" --jq .sha
+    if ($LASTEXITCODE -or $current -cne $env:GITHUB_SHA) { throw 'A newer main commit supersedes this preview build' }
+}
 $config = Get-Content packaging/preview.json -Raw | ConvertFrom-Json
 $tag = "v$($config.version)"
 if ($tag -cnotmatch '^v\d+\.\d+\.\d+-preview\.\d+$') { throw 'Expected a preview version' }

@@ -33,7 +33,7 @@
 
 ## Windows 10 / 11 兼容性
 
-一个 NSIS 安装程序携带 x64 Electron、Node、Python、pnpm 和原生运行库。32 位 NSIS 引导程序可以安装 x64 应用。上游运行时清单指定 Node 24.21.0、Python 3.12.14；Electron 以构建时上游锁文件为准。Electron 与 Node 的 Windows x64 平台基线为 Windows 10。Windows 终端使用的系统 ConPTY API 自 1809 起提供。原生模块实际加载、显卡驱动、终端和 Office 文件转换仍需对应系统验证。[Electron 平台](https://github.com/electron/electron/tree/v44.7.0#platform-support) · [Node 平台](https://github.com/nodejs/node/blob/v24.21.0/BUILDING.md#platform-list) · [Python 平台](https://docs.python.org/3.12/using/windows.html) · [ConPTY](https://learn.microsoft.com/windows/console/createpseudoconsole)
+一个 NSIS 安装程序携带 x64 Electron、Node、Python、pnpm 和原生运行库。32 位 NSIS 引导程序可以安装 x64 应用。预览运行时固定为 Electron 44.11.5、Node 24.22.3、Python 3.12.16。构建验证下载档案的 SHA256。Electron 与 Node 的 Windows x64 平台基线为 Windows 10。Windows 终端使用的系统 ConPTY API 自 1809 起提供。原生模块实际加载、显卡驱动、终端和 Office 文件转换仍需对应系统验证。[Electron 平台](https://github.com/electron/electron/tree/v44.11.5#platform-support) · [Node 平台](https://github.com/nodejs/node/blob/v24.22.3/BUILDING.md#platform-list) · [Python 平台](https://docs.python.org/3.12/using/windows.html) · [ConPTY](https://learn.microsoft.com/windows/console/createpseudoconsole)
 
 | 目标系统（x64） | 目标 Build | 客户端验证 |
 | --- | --- | --- |

@@ -4,6 +4,7 @@ import { join } from 'node:path'
 
 const read = p => JSON.parse(readFileSync(p,'utf8'))
 const pack = read('packaging/preview.json')
+const runtime = read('packaging/runtimes.json')
 const sha = readFileSync('dist/SHA256SUMS.txt','utf8').trim().split(/\s+/)[0]
 const reports = readdirSync('reports').sort()
 assert.equal(reports.length, 2)
@@ -28,7 +29,7 @@ const notes = `# DSH Desktop v${pack.version} · Windows x64 社区预览版
 
 下载 **DSH-Desktop-Setup-x64.exe**，双击安装。**安装包未做 Authenticode 代码签名。** SHA256 为 \`${sha}\`。同页附有 SHA256SUMS.txt。
 
-社区打包版本为 v${pack.version}。上游 Desktop 和 Agent 源自 DeepSeek 的 0.2.2-rc.5。[上游提交](https://github.com/deepseek-ai/deepseek-harness/commit/${pack.upstream}) · [本次构建及验收记录](${run})
+社区打包版本为 v${pack.version}。上游 Desktop 和 Agent 源自 DeepSeek 的 0.2.2-rc.5。随包运行时为 Electron ${runtime.electron}、Node ${runtime.nodeVersion}、Python ${runtime.pythonVersion}。[上游提交](https://github.com/deepseek-ai/deepseek-harness/commit/${pack.upstream}) · [本次构建及验收记录](${run})
 
 | 实际测试系统 | 宿主 CPU | 使用同一 SHA256 安装包的结果 | 原生文件检查 |
 | --- | --- | --- | --- |

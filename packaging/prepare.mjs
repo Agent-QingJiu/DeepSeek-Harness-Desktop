@@ -59,3 +59,24 @@ replaceOnce('packages/util/home-paths/src/index.ts', "export const DSH_HOME_DIR_
   "export const DSH_HOME_DIR_NAME = '.dsh-desktop-preview'")
 replaceOnce('apps/desktop/scripts/electron-builder-config.mjs', '    nsis: {',
   "    nsis: {\n      shortcutName: 'DSH Desktop Preview',\n      createDesktopShortcut: 'always',\n      createStartMenuShortcut: true,")
+
+// Upstream development types remain locked; the archive below is the Electron actually shipped.
+const runtime = JSON.parse(readFileSync(new URL('./runtimes.json', import.meta.url), 'utf8'))
+const runtimeSource = 'apps/desktop/scripts/prepare-runtime.ts'
+replaceOnce(runtimeSource, "import { createRequire } from 'node:module'",
+  "import { createHash } from 'node:crypto'\nimport { readFileSync } from 'node:fs'")
+replaceOnce(runtimeSource,
+  "  const require = createRequire(import.meta.url)\n  const { version } = require('electron/package.json') as { version: string }",
+  "  const version = '" + runtime.electron + "'")
+replaceOnce(runtimeSource, '  rmSync(BUILD_PATHS.electron,',
+  "  if (platform !== 'win32' || arch !== 'x64') throw new Error('This distribution requires Windows x64')\n" +
+  "  if (createHash('sha256').update(readFileSync(archive)).digest('hex') !== '" + runtime.electronWindowsSha256 + "') {\n" +
+  "    throw new Error('Electron archive checksum mismatch')\n  }\n  rmSync(BUILD_PATHS.electron,")
+replaceOnce('apps/desktop/scripts/electron-builder-config.mjs', '    electronDist: buildPaths.electron,',
+  "    electronVersion: '" + runtime.electron + "',\n    electronDist: buildPaths.electron,")
+const lockPath = join(source, 'scripts/primary-runtime/lock.json')
+const lock = JSON.parse(readFileSync(lockPath, 'utf8'))
+assert.deepEqual(Object.keys(lock.targets).sort(), Object.keys(runtime.targets).sort())
+for (const name of ['pythonVersion', 'pythonRelease', 'nodeVersion']) lock[name] = runtime[name]
+for (const [target, hashes] of Object.entries(runtime.targets)) Object.assign(lock.targets[target], hashes)
+writeFileSync(lockPath, JSON.stringify(lock, null, 2) + '\n')

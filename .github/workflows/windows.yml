@@ -45,7 +45,7 @@ jobs:
       - &node
         uses: actions/setup-node@v4
         with:
-          node-version: '24.21.0'
+          node-version: '24.22.3'
       - &configure
         name: Configure Windows preview and upstream notices
         run: node packaging/prepare.mjs upstream
@@ -134,7 +134,7 @@ jobs:
           path: installer
       - uses: actions/setup-node@v4
         with:
-          node-version: '24.21.0'
+          node-version: '24.22.3'
       - name: Prepare external test tools
         shell: pwsh
         run: |
