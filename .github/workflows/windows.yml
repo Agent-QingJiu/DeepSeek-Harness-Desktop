@@ -1,0 +1,76 @@
+name: Windows Desktop Installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout packaging repository
+        uses: actions/checkout@v4
+
+      - name: Checkout upstream DeepSeek Harness
+        uses: actions/checkout@v4
+        with:
+          repository: deepseek-ai/deepseek-harness
+          ref: master
+          path: upstream
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Enable pnpm
+        shell: pwsh
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.28.5 --activate
+          pnpm --version
+
+      - name: Install upstream dependencies
+        working-directory: upstream
+        shell: pwsh
+        run: pnpm install --frozen-lockfile
+
+      - name: Build upstream
+        working-directory: upstream
+        shell: pwsh
+        run: pnpm run build
+
+      - name: Package unsigned Windows x64 installer
+        working-directory: upstream
+        shell: pwsh
+        run: pnpm run package:desktop:win:x64:unsigned
+
+      - name: Locate installer
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Path upstream -Recurse -File -Include *.exe -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -notmatch 'node_modules|\\cache\\|\\.pnpm\\' -and $_.Length -gt 10MB }
+          if (-not $files) { throw 'No Windows installer found; inspect packaging logs.' }
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $files | ForEach-Object { Copy-Item $_.FullName -Destination dist -Force; Write-Host $_.FullName }
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DeepSeek-Harness-Desktop-Windows-x64
+          path: dist/*.exe
+          if-no-files-found: error
+
+      - name: Publish GitHub Release on version tags
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: gh release create "${{ github.ref_name }}" dist/*.exe --title "${{ github.ref_name }}" --notes "Windows x64 unsigned build from the official DeepSeek Harness source. Verify before production use."
