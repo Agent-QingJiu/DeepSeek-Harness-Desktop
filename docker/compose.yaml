@@ -3,14 +3,30 @@ services:
     image: ghcr.io/agent-qingjiu/deepseek-harness-desktop:docker
     container_name: DeepSeek-Harness
     restart: unless-stopped
+    init: true
     ports:
       - "127.0.0.1:3080:3080"
     volumes:
-      - ./data:/home/agent
-      - ./workspace:/workspace
+      - ./data:/home/agent:Z
+      - ./workspace:/workspace:Z
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
     pids_limit: 256
     mem_limit: 4g
+    networks:
+      harness_net:
+        ipv4_address: 172.30.252.2
+
+networks:
+  harness_net:
+    name: deepseek_harness_net
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.252.0/29
+          gateway: 172.30.252.1
