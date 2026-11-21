@@ -47,6 +47,15 @@ jobs:
         shell: pwsh
         run: pnpm run build
 
+      - name: Prepare Windows desktop package environment
+        shell: pwsh
+        run: |
+          $example = 'upstream/apps/desktop/.env.windows.example'
+          $target = 'upstream/apps/desktop/.env.windows'
+          if (-not (Test-Path $example)) { throw "Missing upstream desktop environment template: $example" }
+          Copy-Item -Path $example -Destination $target -Force
+          Write-Host 'Prepared Windows desktop environment from upstream example.'
+
       - name: Package unsigned Windows x64 installer
         working-directory: upstream
         shell: pwsh
