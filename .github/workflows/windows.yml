@@ -1,6 +1,11 @@
 name: Windows Desktop Installer
 on:
   workflow_dispatch:
+    inputs:
+      publish_preview:
+        description: Publish the validated version as a prerelease
+        type: boolean
+        default: false
   push:
     branches: [main]
     tags: ['v*']
@@ -71,3 +76,65 @@ jobs:
           path: dist/
           compression-level: 0
           if-no-files-found: error
+
+  acceptance:
+    needs: windows
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [windows-2025, windows-11-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-x64-preview
+          path: installer
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.21.0'
+      - name: Prepare external test tools
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check pefile==2024.8.26
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm install --prefix "$env:RUNNER_TEMP/dsh-ui-test" --ignore-scripts --no-audit --no-fund playwright-core@1.56.1
+      - name: Install and exercise the downloaded package
+        shell: pwsh
+        run: ./acceptance/windows.ps1 -Artifacts installer -Evidence evidence -TestModules "$env:RUNNER_TEMP/dsh-ui-test"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: acceptance-${{ matrix.runner }}
+          path: evidence/
+          if-no-files-found: warn
+
+  release:
+    needs: [windows, acceptance]
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_preview) || (github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'release: publish preview'))
+    runs-on: windows-2025
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-x64-preview
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: acceptance-*
+          path: reports
+      - name: Assemble verified acceptance report
+        run: node acceptance/report.mjs
+      - name: Publish verified preview
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./packaging/publish.ps1 -Directory dist
