@@ -11,7 +11,7 @@ services:
       - ./workspace:/workspace:Z
     read_only: true
     tmpfs:
-      - /tmp:rw,nosuid,size=256m
+      - /tmp:rw,exec,nosuid,size=256m
     security_opt:
       - no-new-privileges:true
     cap_drop:
