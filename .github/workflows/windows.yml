@@ -1,85 +1,69 @@
 name: Windows Desktop Installer
-
 on:
   workflow_dispatch:
   push:
     branches: [main]
-    tags:
-      - "v*"
+    tags: ['v*']
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   windows:
-    runs-on: windows-latest
-    timeout-minutes: 120
+    runs-on: windows-2025
+    timeout-minutes: 210
+    env:
+      DSH_TELEMETRY_DISABLED: '1'
     steps:
-      - name: Checkout packaging repository
-        uses: actions/checkout@v4
-
-      - name: Checkout upstream DeepSeek Harness
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - id: source
+        name: Read pinned upstream revision
+        shell: pwsh
+        run: |
+          $package = Get-Content packaging/preview.json -Raw | ConvertFrom-Json
+          if ($package.upstream -cnotmatch '^[0-9a-f]{40}$') { throw 'Invalid upstream commit' }
+          "sha=$($package.upstream)" >> $env:GITHUB_OUTPUT
+      - uses: actions/checkout@v4
         with:
           repository: deepseek-ai/deepseek-harness
-          ref: master
+          ref: ${{ steps.source.outputs.sha }}
           path: upstream
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+          persist-credentials: false
+      - uses: actions/setup-node@v4
         with:
-          node-version: '24'
-
-      - name: Enable pnpm
+          node-version: '24.21.0'
+      - name: Configure Windows preview and upstream notices
+        run: node packaging/prepare.mjs upstream
+      - name: Install locked build dependencies
+        working-directory: upstream
         shell: pwsh
         run: |
           corepack enable
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
           corepack prepare pnpm@11.28.5 --activate
-          pnpm --version
-
-      - name: Install upstream dependencies
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          pnpm install --frozen-lockfile
+      - name: Check packaging configuration and Windows build tools
         working-directory: upstream
-        shell: pwsh
-        run: pnpm install --frozen-lockfile
-
-      - name: Build upstream
+        run: pnpm --dir apps/desktop run package:win:x64:unsigned --check
+      - name: Compile, seal, smoke-test and package Windows x64
         working-directory: upstream
-        shell: pwsh
-        run: pnpm run build
-
-      - name: Prepare Windows desktop package environment
-        shell: pwsh
-        run: |
-          $example = 'upstream/apps/desktop/.env.windows.example'
-          $target = 'upstream/apps/desktop/.env.windows'
-          if (-not (Test-Path $example)) { throw "Missing upstream desktop environment template: $example" }
-          Copy-Item -Path $example -Destination $target -Force
-          Write-Host 'Prepared Windows desktop environment from upstream example.'
-
-      - name: Package unsigned Windows x64 installer
-        working-directory: upstream
-        shell: pwsh
         run: pnpm run package:desktop:win:x64:unsigned
-
-      - name: Locate installer
+      - name: Collect the NSIS installer
         shell: pwsh
         run: |
-          $files = Get-ChildItem -Path upstream -Recurse -File -Include *.exe -ErrorAction SilentlyContinue |
-            Where-Object { $_.FullName -notmatch 'node_modules|\\cache\\|\\.pnpm\\' -and $_.Length -gt 10MB }
-          if (-not $files) { throw 'No Windows installer found; inspect packaging logs.' }
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
-          $files | ForEach-Object { Copy-Item $_.FullName -Destination dist -Force; Write-Host $_.FullName }
-
-      - name: Upload installer artifact
-        uses: actions/upload-artifact@v4
+          $dir = 'upstream/apps/desktop/.desktop-build/targets/win-x64/unsigned-artifacts'
+          $files = @(Get-ChildItem -LiteralPath $dir -File -Filter 'deepseek-harness-*-win-x64-unsigned.exe')
+          if ($files.Count -ne 1) { throw "Expected one installer, found $($files.Count)" }
+          New-Item -Type Directory -Path dist | Out-Null
+          Copy-Item -LiteralPath $files[0].FullName -Destination dist/DSH-Desktop-Setup-x64.exe
+          $sha = (Get-FileHash dist/DSH-Desktop-Setup-x64.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$sha  DSH-Desktop-Setup-x64.exe" | Set-Content dist/SHA256SUMS.txt -Encoding ascii
+      - uses: actions/upload-artifact@v4
         with:
-          name: DeepSeek-Harness-Desktop-Windows-x64
-          path: dist/*.exe
+          name: Windows-x64-preview
+          path: dist/
+          compression-level: 0
           if-no-files-found: error
-
-      - name: Publish GitHub Release on version tags
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: pwsh
-        run: gh release create "${{ github.ref_name }}" dist/*.exe --title "${{ github.ref_name }}" --notes "Windows x64 unsigned build from the official DeepSeek Harness source. Verify before production use."
