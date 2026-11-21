@@ -36,6 +36,8 @@ jobs:
           node-version: '24.21.0'
       - name: Configure Windows preview and upstream notices
         run: node packaging/prepare.mjs upstream
+      - name: Verify Windows account-bound credential encryption
+        run: node --experimental-strip-types acceptance/dpapi.mjs
       - name: Install locked build dependencies
         working-directory: upstream
         shell: pwsh

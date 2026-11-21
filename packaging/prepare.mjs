@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const source = resolve(process.argv[2] || 'upstream')
 const preview = JSON.parse(readFileSync(new URL('./preview.json', import.meta.url), 'utf8'))
@@ -29,7 +30,7 @@ replaceOnce('apps/desktop/src/mandatory-update-policy.ts',
 const appDir = join(source, 'apps', 'desktop')
 const template = readFileSync(join(appDir, '.env.windows.example'), 'utf8')
 const settings = {
-  DSH_DESKTOP_APP_ID: 'cn.qistore.dshdesktop.preview',
+  DSH_DESKTOP_APP_ID: 'io.github.agent-qingjiu.dshdesktop.preview',
   DSH_DESKTOP_AUTO_UPDATE_ENV: 'production',
   DSH_DESKTOP_MANDATORY_UPDATE_PROD_ORIGIN: 'https://raw.githubusercontent.com',
   DSH_DESKTOP_MANDATORY_UPDATE_CONFIG: '\'{"allowedPageOrigins":["https://github.com"]}\'',
@@ -48,3 +49,13 @@ mkdirSync(notices, { recursive: true })
 for (const file of ['LICENSE', 'THIRD_PARTY_NOTICES.md', 'BRAND_GUIDELINES.md']) {
   copyFileSync(join(source, file), join(notices, file))
 }
+
+const patch = fileURLToPath(new URL('./credentials.patch', import.meta.url))
+execFileSync('git', ['-C', source, 'apply', '--check', patch], { stdio: 'inherit' })
+execFileSync('git', ['-C', source, 'apply', patch], { stdio: 'inherit' })
+copyFileSync(new URL('./windows-credentials.ts', import.meta.url),
+  join(source, 'packages/credentials/credentials-local/src/windows-credentials.ts'))
+replaceOnce('packages/util/home-paths/src/index.ts', "export const DSH_HOME_DIR_NAME = '.dsh'",
+  "export const DSH_HOME_DIR_NAME = '.dsh-desktop-preview'")
+replaceOnce('apps/desktop/scripts/electron-builder-config.mjs', '    nsis: {',
+  "    nsis: {\n      shortcutName: 'DSH Desktop Preview',\n      createDesktopShortcut: 'always',\n      createStartMenuShortcut: true,")
