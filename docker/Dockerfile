@@ -9,6 +9,7 @@ RUN apt-get update \
     && chown agent:agent /workspace
 
 ENV HOME=/home/agent
+ENV DSH_HOME=/home/agent/.dsh
 ENV DSH_TELEMETRY_MODE=DISABLED
 WORKDIR /workspace
 USER 10001:10001
