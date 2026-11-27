@@ -8,7 +8,7 @@ const source = resolve(process.argv[2] || 'upstream')
 const preview = JSON.parse(readFileSync(new URL('./preview.json', import.meta.url), 'utf8'))
 assert.match(preview.version, /^\d+\.\d+\.\d+-preview\.\d+$/)
 assert.equal(execFileSync('git', ['-C', source, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(), preview.upstream)
-const repo = 'Agent-QingJiu/DeepSeek-Harness-Desktop'
+const repo = 'QiWorksLab/DeepSeek-Harness-Desktop'
 const policyPath = '/' + repo + '/main/updates/v' + preview.version + '.json'
 const policy = JSON.parse(readFileSync(new URL('../updates/v' + preview.version + '.json', import.meta.url)))
 assert.equal(policy.code, 0)
@@ -44,6 +44,9 @@ for (const [key, value] of Object.entries(settings)) {
 writeFileSync(join(appDir, '.env.windows'), env)
 replaceOnce('apps/desktop/scripts/electron-builder-config.mjs', '    extraResources: [',
   "    extraResources: [\n      { from: fileURLToPath(new URL('../community-notices', import.meta.url)), to: 'licenses' },")
+replaceOnce('apps/desktop/scripts/electron-builder-config.mjs',
+  '      allowToChangeInstallationDirectory: false,',
+  '      allowToChangeInstallationDirectory: true,')
 const notices = join(appDir, 'community-notices')
 mkdirSync(notices, { recursive: true })
 for (const file of ['LICENSE', 'THIRD_PARTY_NOTICES.md', 'BRAND_GUIDELINES.md']) {
